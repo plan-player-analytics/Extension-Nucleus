@@ -320,7 +320,8 @@ public class NucleusExtension implements DataExtension {
             iconName = "id-badge",
             iconColor = Color.GREEN,
             iconFamily = Family.REGULAR,
-            priority = 100
+            priority = 100,
+            showInPlayerTable = true
     )
     public String nickname(UUID playerUUID) {
         return getUser(playerUUID)
