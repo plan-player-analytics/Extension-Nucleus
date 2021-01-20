@@ -22,6 +22,7 @@
 */
 package com.djrapitops.extension;
 
+import com.djrapitops.plan.extension.CallEvents;
 import com.djrapitops.plan.extension.DataExtension;
 import com.djrapitops.plan.extension.ElementOrder;
 import com.djrapitops.plan.extension.FormatType;
@@ -31,9 +32,13 @@ import com.djrapitops.plan.extension.icon.Family;
 import com.djrapitops.plan.extension.icon.Icon;
 import com.djrapitops.plan.extension.table.Table;
 import io.github.nucleuspowered.nucleus.api.NucleusAPI;
-import io.github.nucleuspowered.nucleus.api.nucleusdata.*;
-import io.github.nucleuspowered.nucleus.api.service.NucleusKitService;
-import io.github.nucleuspowered.nucleus.api.service.NucleusWarpService;
+import io.github.nucleuspowered.nucleus.api.module.home.data.Home;
+import io.github.nucleuspowered.nucleus.api.module.jail.data.Jailing;
+import io.github.nucleuspowered.nucleus.api.module.kit.NucleusKitService;
+import io.github.nucleuspowered.nucleus.api.module.mute.data.Mute;
+import io.github.nucleuspowered.nucleus.api.module.note.data.Note;
+import io.github.nucleuspowered.nucleus.api.module.warp.NucleusWarpService;
+import io.github.nucleuspowered.nucleus.api.module.warp.data.Warp;
 import org.spongepowered.api.Sponge;
 import org.spongepowered.api.entity.living.player.Player;
 import org.spongepowered.api.entity.living.player.User;
@@ -70,12 +75,23 @@ import java.util.UUID;
         elementOrder = {ElementOrder.TABLE}
 )
 @TabOrder({"Homes", "Punishments", "Kits"})
+@InvalidateMethod("warnings")
 public class NucleusExtension implements DataExtension {
 
-    private UserStorageService userStorageService;
+    private final UserStorageService userStorageService;
 
     public NucleusExtension() {
         userStorageService = Sponge.getServiceManager().provide(UserStorageService.class).orElseThrow(IllegalStateException::new);
+    }
+
+    @Override
+    public CallEvents[] callExtensionMethodsOn() {
+        return new CallEvents[]{
+                CallEvents.SERVER_EXTENSION_REGISTER,
+                CallEvents.SERVER_PERIODICAL,
+                CallEvents.PLAYER_JOIN,
+                CallEvents.PLAYER_LEAVE
+        };
     }
 
     private Optional<User> getUser(UUID playerUUID) {
@@ -119,7 +135,7 @@ public class NucleusExtension implements DataExtension {
         return getUser(playerUUID)
                 .flatMap(user -> NucleusAPI.getMuteService()
                         .flatMap(service -> service.getPlayerMuteInfo(user)))
-                .flatMap(MuteInfo::getMuter)
+                .flatMap(Mute::getMuter)
                 .flatMap(this::getUser)
                 .map(User::getName)
                 .orElse("Unknown");
@@ -139,7 +155,7 @@ public class NucleusExtension implements DataExtension {
         return getUser(playerUUID)
                 .flatMap(user -> NucleusAPI.getMuteService()
                         .flatMap(service -> service.getPlayerMuteInfo(user)))
-                .flatMap(MuteInfo::getCreationInstant)
+                .flatMap(Mute::getCreationInstant)
                 .map(Instant::toEpochMilli)
                 .orElse(-1L);
     }
@@ -158,7 +174,7 @@ public class NucleusExtension implements DataExtension {
         return getUser(playerUUID)
                 .flatMap(user -> NucleusAPI.getMuteService()
                         .flatMap(service -> service.getPlayerMuteInfo(user)))
-                .flatMap(MuteInfo::getRemainingTime)
+                .flatMap(Mute::getRemainingTime)
                 .map(duration -> duration.plusMillis(System.currentTimeMillis()).toMillis())
                 .orElse(-1L);
     }
@@ -177,7 +193,7 @@ public class NucleusExtension implements DataExtension {
         return getUser(playerUUID)
                 .flatMap(user -> NucleusAPI.getMuteService()
                         .flatMap(service -> service.getPlayerMuteInfo(user)))
-                .map(MuteInfo::getReason)
+                .map(Mute::getReason)
                 .orElse("Unspecified");
     }
 
@@ -211,7 +227,7 @@ public class NucleusExtension implements DataExtension {
         return getUser(playerUUID)
                 .flatMap(user -> NucleusAPI.getJailService()
                         .flatMap(service -> service.getPlayerJailData(user)))
-                .flatMap(Inmate::getJailer)
+                .flatMap(Jailing::getJailer)
                 .flatMap(this::getUser)
                 .map(User::getName)
                 .orElse("Unknown");
@@ -231,7 +247,7 @@ public class NucleusExtension implements DataExtension {
         return getUser(playerUUID)
                 .flatMap(user -> NucleusAPI.getJailService()
                         .flatMap(service -> service.getPlayerJailData(user)))
-                .flatMap(Inmate::getCreationInstant)
+                .flatMap(Jailing::getCreationInstant)
                 .map(Instant::toEpochMilli)
                 .orElse(-1L);
     }
@@ -250,7 +266,7 @@ public class NucleusExtension implements DataExtension {
         return getUser(playerUUID)
                 .flatMap(user -> NucleusAPI.getJailService()
                         .flatMap(service -> service.getPlayerJailData(user)))
-                .flatMap(Inmate::getRemainingTime)
+                .flatMap(Jailing::getRemainingTime)
                 .map(duration -> duration.plusMillis(System.currentTimeMillis()).toMillis())
                 .orElse(-1L);
     }
@@ -269,7 +285,7 @@ public class NucleusExtension implements DataExtension {
         return getUser(playerUUID)
                 .flatMap(user -> NucleusAPI.getJailService()
                         .flatMap(service -> service.getPlayerJailData(user)))
-                .map(Inmate::getReason)
+                .map(Jailing::getReason)
                 .orElse("Unspecified");
     }
 
@@ -287,32 +303,8 @@ public class NucleusExtension implements DataExtension {
         return getUser(playerUUID)
                 .flatMap(user -> NucleusAPI.getJailService()
                         .flatMap(service -> service.getPlayerJailData(user)))
-                .map(Inmate::getJailName)
+                .map(Jailing::getJailName)
                 .orElse("-");
-    }
-
-    @TableProvider(tableColor = Color.AMBER)
-    @Tab("Punishments")
-    public Table warnings(UUID playerUUID) {
-        Table.Factory table = Table.builder()
-                .columnOne("Warner", Icon.called("exclamation").of(Family.SOLID).build())
-                .columnTwo("Reason", Icon.called("sticky-note").of(Family.SOLID).build());
-
-        List<Warning> warnings = getUser(playerUUID)
-                .flatMap(user -> NucleusAPI.getWarningService()
-                        .map(service -> service.getWarnings(user)))
-                .orElse(Collections.emptyList());
-
-        if (warnings.isEmpty()) {
-            table.addRow("No Warnings");
-        } else {
-            for (Warning warning : warnings) {
-                String warner = warning.getWarner().flatMap(this::getUser).map(User::getName).orElse("Unknown");
-                table.addRow(warner, warning.getReason());
-            }
-        }
-
-        return table.build();
     }
 
     @StringProvider(
