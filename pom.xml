@@ -6,7 +6,7 @@
 
     <groupId>com.djrapitops</groupId>
     <artifactId>Extension-Nucleus</artifactId>
-    <version>2.3.0-R0.1</version>
+    <version>3.0.0-R0.1</version>
     <build>
         <plugins>
             <plugin>
@@ -23,7 +23,7 @@
     <repositories>
         <repository>
             <id>nucleus-repo</id>
-            <url>http://repo.drnaylor.co.uk/artifactory/list/minecraft</url>
+            <url>https://repo.drnaylor.co.uk/artifactory/list/minecraft</url>
         </repository>
 
         <!-- Platforms -->
@@ -63,7 +63,7 @@
         <dependency>
             <groupId>io.github.nucleuspowered</groupId>
             <artifactId>nucleus-api</artifactId>
-            <version>2.3.0</version>
+            <version>3.0.0-BETA2c</version>
             <scope>provided</scope>
         </dependency>
 
@@ -78,7 +78,7 @@
         <dependency>
             <groupId>org.spongepowered</groupId>
             <artifactId>spongeapi</artifactId>
-            <version>7.1.0</version>
+            <version>8.0.0</version>
             <scope>provided</scope>
         </dependency>
         <!--<dependency>-->

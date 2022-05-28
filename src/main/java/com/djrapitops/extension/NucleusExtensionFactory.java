@@ -35,7 +35,7 @@ public class NucleusExtensionFactory {
 
     private boolean isAvailable() {
         try {
-            Class.forName("io.github.nucleuspowered.nucleus.NucleusPlugin");
+            Class.forName("io.github.nucleuspowered.nucleus.core.NucleusCore");
             return true;
         } catch (ClassNotFoundException e) {
             return false;
