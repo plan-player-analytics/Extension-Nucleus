@@ -1,5 +1,5 @@
 /*
-    Copyright(c) 2019 Risto Lahtela (AuroraLS3)
+    Copyright(c) 2019 AuroraLS3
 
     The MIT License(MIT)
 
@@ -24,6 +24,7 @@ package com.djrapitops.extension;
 
 import com.djrapitops.plan.extension.DataExtension;
 import com.djrapitops.plan.extension.extractor.ExtensionExtractor;
+import net.playeranalytics.extension.nucleus.extension.NucleusExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
