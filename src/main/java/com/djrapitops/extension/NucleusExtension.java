@@ -39,22 +39,22 @@ import io.github.nucleuspowered.nucleus.api.module.mute.data.Mute;
 import io.github.nucleuspowered.nucleus.api.module.note.data.Note;
 import io.github.nucleuspowered.nucleus.api.module.warp.NucleusWarpService;
 import io.github.nucleuspowered.nucleus.api.module.warp.data.Warp;
+import io.github.nucleuspowered.nucleus.api.util.data.TimedEntry;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.spongepowered.api.Sponge;
-import org.spongepowered.api.entity.living.player.Player;
 import org.spongepowered.api.entity.living.player.User;
-import org.spongepowered.api.service.user.UserStorageService;
-import org.spongepowered.api.text.serializer.TextSerializers;
+import org.spongepowered.api.entity.living.player.server.ServerPlayer;
 
 import java.time.Instant;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * DataExtension for Nucleus.
  * <p>
  * Adapted from PluginData implementation by Vankka.
+ * <p>
+ * Ported to Nucleus 3.0.0 by Vankka.
  *
  * @author AuroraLS3
  */
@@ -78,12 +78,6 @@ import java.util.UUID;
 @InvalidateMethod("warnings")
 public class NucleusExtension implements DataExtension {
 
-    private final UserStorageService userStorageService;
-
-    public NucleusExtension() {
-        userStorageService = Sponge.getServiceManager().provide(UserStorageService.class).orElseThrow(IllegalStateException::new);
-    }
-
     @Override
     public CallEvents[] callExtensionMethodsOn() {
         return new CallEvents[]{
@@ -95,14 +89,18 @@ public class NucleusExtension implements DataExtension {
     }
 
     private Optional<User> getUser(UUID playerUUID) {
-        Optional<Player> player = Sponge.getServer().getPlayer(playerUUID);
+        Optional<ServerPlayer> player = Sponge.game().server().player(playerUUID);
         if (player.isPresent()) {
-            return player.map(p -> p); // Maps to User
-        } else if (userStorageService != null) {
-            return userStorageService.get(playerUUID);
+            return player.map(ServerPlayer::user);
         } else {
-            return Optional.empty();
+            return Sponge.game().server().userManager()
+                    .load(playerUUID)
+                    .join();
         }
+    }
+
+    private String convertToPlain(Component component) {
+        return LegacyComponentSerializer.legacySection().serialize(component);
     }
 
     @BooleanProvider(
@@ -114,10 +112,9 @@ public class NucleusExtension implements DataExtension {
     )
     @Tab("Punishments")
     public boolean isMuted(UUID playerUUID) {
-        return getUser(playerUUID)
-                .flatMap(user -> NucleusAPI.getMuteService()
-                        .map(service -> service.isMuted(user))
-                ).orElse(false);
+        return NucleusAPI.getMuteService()
+                .map(service -> service.isMuted(playerUUID))
+                .orElse(false);
     }
 
     @StringProvider(
@@ -132,13 +129,12 @@ public class NucleusExtension implements DataExtension {
     @Conditional("isMuted")
     @Tab("Punishments")
     public String muteOperator(UUID playerUUID) {
-        return getUser(playerUUID)
-                .flatMap(user -> NucleusAPI.getMuteService()
-                        .flatMap(service -> service.getPlayerMuteInfo(user)))
+        return NucleusAPI.getMuteService()
+                .flatMap(service -> service.getPlayerMuteInfo(playerUUID))
                 .flatMap(Mute::getMuter)
                 .flatMap(this::getUser)
-                .map(User::getName)
-                .orElse("Unknown");
+                .map(User::name)
+                .orElse("Console");
     }
 
     @NumberProvider(
@@ -152,9 +148,8 @@ public class NucleusExtension implements DataExtension {
     @Conditional("isMuted")
     @Tab("Punishments")
     public long muteStart(UUID playerUUID) {
-        return getUser(playerUUID)
-                .flatMap(user -> NucleusAPI.getMuteService()
-                        .flatMap(service -> service.getPlayerMuteInfo(user)))
+        return NucleusAPI.getMuteService()
+                .flatMap(service -> service.getPlayerMuteInfo(playerUUID))
                 .flatMap(Mute::getCreationInstant)
                 .map(Instant::toEpochMilli)
                 .orElse(-1L);
@@ -171,10 +166,10 @@ public class NucleusExtension implements DataExtension {
     @Conditional("isMuted")
     @Tab("Punishments")
     public long muteEnd(UUID playerUUID) {
-        return getUser(playerUUID)
-                .flatMap(user -> NucleusAPI.getMuteService()
-                        .flatMap(service -> service.getPlayerMuteInfo(user)))
-                .flatMap(Mute::getRemainingTime)
+        return NucleusAPI.getMuteService()
+                .flatMap(service -> service.getPlayerMuteInfo(playerUUID))
+                .flatMap(Mute::getTimedEntry)
+                .map(TimedEntry::getRemainingTime)
                 .map(duration -> duration.plusMillis(System.currentTimeMillis()).toMillis())
                 .orElse(-1L);
     }
@@ -190,11 +185,10 @@ public class NucleusExtension implements DataExtension {
     @Conditional("isMuted")
     @Tab("Punishments")
     public String muteReason(UUID playerUUID) {
-        return getUser(playerUUID)
-                .flatMap(user -> NucleusAPI.getMuteService()
-                        .flatMap(service -> service.getPlayerMuteInfo(user)))
+        return NucleusAPI.getMuteService()
+                .flatMap(service -> service.getPlayerMuteInfo(playerUUID))
                 .map(Mute::getReason)
-                .orElse("Unspecified");
+                .orElse("Unknown");
     }
 
     @BooleanProvider(
@@ -206,10 +200,9 @@ public class NucleusExtension implements DataExtension {
     )
     @Tab("Punishments")
     public boolean isJailed(UUID playerUUID) {
-        return getUser(playerUUID)
-                .flatMap(user -> NucleusAPI.getJailService()
-                        .map(service -> service.isPlayerJailed(user))
-                ).orElse(false);
+        return NucleusAPI.getJailService()
+                .map(service -> service.isPlayerJailed(playerUUID))
+                .orElse(false);
     }
 
     @StringProvider(
@@ -224,13 +217,12 @@ public class NucleusExtension implements DataExtension {
     @Conditional("isJailed")
     @Tab("Punishments")
     public String jailOperator(UUID playerUUID) {
-        return getUser(playerUUID)
-                .flatMap(user -> NucleusAPI.getJailService()
-                        .flatMap(service -> service.getPlayerJailData(user)))
+        return NucleusAPI.getJailService()
+                .flatMap(service -> service.getPlayerJailData(playerUUID))
                 .flatMap(Jailing::getJailer)
                 .flatMap(this::getUser)
-                .map(User::getName)
-                .orElse("Unknown");
+                .map(User::name)
+                .orElse("Console");
     }
 
     @NumberProvider(
@@ -244,9 +236,8 @@ public class NucleusExtension implements DataExtension {
     @Conditional("isJailed")
     @Tab("Punishments")
     public long jailStart(UUID playerUUID) {
-        return getUser(playerUUID)
-                .flatMap(user -> NucleusAPI.getJailService()
-                        .flatMap(service -> service.getPlayerJailData(user)))
+        return NucleusAPI.getJailService()
+                .flatMap(service -> service.getPlayerJailData(playerUUID))
                 .flatMap(Jailing::getCreationInstant)
                 .map(Instant::toEpochMilli)
                 .orElse(-1L);
@@ -263,10 +254,10 @@ public class NucleusExtension implements DataExtension {
     @Conditional("isJailed")
     @Tab("Punishments")
     public long jailEnd(UUID playerUUID) {
-        return getUser(playerUUID)
-                .flatMap(user -> NucleusAPI.getJailService()
-                        .flatMap(service -> service.getPlayerJailData(user)))
-                .flatMap(Jailing::getRemainingTime)
+        return NucleusAPI.getJailService()
+                .flatMap(service -> service.getPlayerJailData(playerUUID))
+                .flatMap(Jailing::getTimedEntry)
+                .map(TimedEntry::getRemainingTime)
                 .map(duration -> duration.plusMillis(System.currentTimeMillis()).toMillis())
                 .orElse(-1L);
     }
@@ -282,11 +273,10 @@ public class NucleusExtension implements DataExtension {
     @Conditional("isJailed")
     @Tab("Punishments")
     public String jailReason(UUID playerUUID) {
-        return getUser(playerUUID)
-                .flatMap(user -> NucleusAPI.getJailService()
-                        .flatMap(service -> service.getPlayerJailData(user)))
+        return NucleusAPI.getJailService()
+                .flatMap(service -> service.getPlayerJailData(playerUUID))
                 .map(Jailing::getReason)
-                .orElse("Unspecified");
+                .orElse("Unknown");
     }
 
     @StringProvider(
@@ -300,11 +290,10 @@ public class NucleusExtension implements DataExtension {
     @Conditional("isJailed")
     @Tab("Punishments")
     public String jail(UUID playerUUID) {
-        return getUser(playerUUID)
-                .flatMap(user -> NucleusAPI.getJailService()
-                        .flatMap(service -> service.getPlayerJailData(user)))
+        return NucleusAPI.getJailService()
+                .flatMap(service -> service.getPlayerJailData(playerUUID))
                 .map(Jailing::getJailName)
-                .orElse("-");
+                .orElse("Unknown");
     }
 
     @StringProvider(
@@ -316,10 +305,9 @@ public class NucleusExtension implements DataExtension {
             showInPlayerTable = true
     )
     public String nickname(UUID playerUUID) {
-        return getUser(playerUUID)
-                .flatMap(user -> NucleusAPI.getNicknameService()
-                        .flatMap(service -> service.getNickname(user)))
-                .map(TextSerializers.FORMATTING_CODE::serialize)
+        return NucleusAPI.getNicknameService()
+                .flatMap(service -> service.getNickname(playerUUID))
+                .map(this::convertToPlain)
                 .orElse("-");
     }
 
@@ -344,7 +332,7 @@ public class NucleusExtension implements DataExtension {
                 .columnOne("Home", Icon.called("home").build());
 
         for (Home home : homes) {
-            table.addRow(home.getName());
+            table.addRow(home.getLocation().getName());
         }
 
         return table.build();
@@ -352,9 +340,8 @@ public class NucleusExtension implements DataExtension {
 
     @TableProvider(tableColor = Color.LIGHT_BLUE)
     public Table notes(UUID playerUUID) {
-        List<Note> notes = getUser(playerUUID)
-                .flatMap(user -> NucleusAPI.getNoteService()
-                        .map(service -> (List<Note>) service.getNotes(user)))
+        Collection<Note> notes = NucleusAPI.getNoteService()
+                .map(service -> service.getNotes(playerUUID).join())
                 .orElse(Collections.emptyList());
 
         Table.Factory table = Table.builder()
@@ -362,7 +349,7 @@ public class NucleusExtension implements DataExtension {
                 .columnTwo("Note", Icon.called("sticky-note").of(Family.REGULAR).build());
 
         for (Note note : notes) {
-            String noter = note.getNoter().flatMap(this::getUser).map(User::getName).orElse("Unknown");
+            String noter = note.getNoter().flatMap(this::getUser).map(User::name).orElse("Unknown");
             table.addRow(noter, note.getNote());
         }
 
@@ -394,8 +381,8 @@ public class NucleusExtension implements DataExtension {
 
         for (Warp warp : warps) {
             table.addRow(
-                    warp.getName(),
-                    warp.getDescription().map(TextSerializers.FORMATTING_CODE::serialize).orElse(null),
+                    warp.getNamedLocation().getName(),
+                    warp.getDescription().map(this::convertToPlain).orElse(null),
                     warp.getCategory().orElse(null)
             );
         }
